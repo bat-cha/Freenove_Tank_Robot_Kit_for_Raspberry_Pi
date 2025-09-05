@@ -1,0 +1,13 @@
+[Unit]
+Description=Freenove Server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 main.py -tn
+WorkingDirectory=/home/pi/Freenove_Tank_Robot_Kit_for_Raspberry_Pi/Code/Server
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
