@@ -119,7 +119,8 @@ class mywindow(QMainWindow, Ui_server_ui):
                     self.queue_led.put(msg)                      # Put LED commands into the LED queue
                 else:
                     if self.cmd_parser.commandString == self.command.CMD_SONIC:
-                        pass                                                        # Placeholder for sonic commands
+                        distance = self.car.sonic.get_distance()                                          # Read the ultrasonic sensor
+                        self.tcp_server.sendDataToCmdClinet("CMD_SONIC#{:.2f}\n".format(distance))   # Push one immediate reading back to the client
                     elif self.cmd_parser.commandString == self.command.CMD_SERVO:
                         if self.car_mode == 1 or self.car_mode == 2:   
                             servo_index = int(self.cmd_parser.intParameter[0])      # Get the servo index
