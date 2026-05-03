@@ -3,6 +3,8 @@ Description=Freenove Server
 After=network.target
 
 [Service]
+Environment=GPIOZERO_PIN_FACTORY=pigpio
+Environment=QT_QPA_PLATFORM=offscreen
 ExecStart=/usr/bin/python3 main.py -tn
 WorkingDirectory=/home/pi/Freenove_Tank_Robot_Kit_for_Raspberry_Pi/Code/Server
 StandardOutput=inherit
