@@ -37,7 +37,7 @@ class mywindow(QMainWindow, Ui_server_ui):
         self.command = Command()                       # Initialize the command object
         self.led = Led()                               # Initialize the LED object
         self.car = Car()                               # Initialize the car object
-        self.camera = Camera(stream_size=(400, 300))   # Initialize the camera with a stream size of 400x300
+        self.camera = Camera(stream_size=(400, 300), hflip=True, vflip=True)   # Camera is mounted upside-down on the Tank chassis; flip both axes so the stream is right-side-up.
         self.queue_cmd = multiprocessing.Queue()       # Create a queue for commands
         self.cmd_parser = MessageParser()              # Initialize the command parser
         self.queue_led = multiprocessing.Queue()       # Create a queue for LED commands
