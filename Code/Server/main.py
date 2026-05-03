@@ -181,7 +181,7 @@ class mywindow(QMainWindow, Ui_server_ui):
                 distance = self.car.sonic.get_distance()
                 if self.tcp_server.get_cmd_server_busy() == False:
                     self.tcp_server.set_cmd_server_busy(True)
-                    self.tcp_server.sendDataToCmdClinet("CMD_SONIC#{:.2f}".format(distance))
+                    self.tcp_server.sendDataToCmdClinet("CMD_SONIC#{:.2f}\n".format(distance))
                     self.tcp_server.set_cmd_server_busy(False)
                 time.sleep(1)                                                     # Sleep for 0.1 seconds if the car mode is 1
             elif self.car_mode == 2:
@@ -189,7 +189,7 @@ class mywindow(QMainWindow, Ui_server_ui):
                 distance = self.car.sonic.get_distance()
                 if self.tcp_server.get_cmd_server_busy() == False:
                     self.tcp_server.set_cmd_server_busy(True)
-                    self.tcp_server.sendDataToCmdClinet("CMD_SONIC#{:.2f}".format(distance))
+                    self.tcp_server.sendDataToCmdClinet("CMD_SONIC#{:.2f}\n".format(distance))
                     self.tcp_server.set_cmd_server_busy(False)
             elif self.car_mode == 3:
                 self.car.mode_infrared()                                          # Set the car mode to infrared
