@@ -43,51 +43,68 @@ class TCPServer:
     def accept_connections(self):
         # Accept new connections until the server is stopped
         while not self.stop_event.is_set():
-            # Use select to monitor the server socket and the stop pipe
-            readable, writable, exceptional = select.select([self.server_socket, self.stop_pipe_r] + list(self.client_sockets.keys()), [], [])
-            for s in readable:
-                if s == self.server_socket and self.active_connections < self.max_clients:
-                    # Accept a new connection if the maximum number of clients is not reached
-                    client_socket, client_address = s.accept()
-                    client_socket.setblocking(0)
-                    self.client_sockets[client_socket] = client_address
-                    self.active_connections += 1
-                    print(f"New connection from {client_address}, {self.active_connections} active connections.")
-                elif s == self.server_socket and self.active_connections >= self.max_clients:
-                    # Reject new connections if the maximum number of clients is reached
-                    client_socket, client_address = s.accept()
-                    client_socket.close()
-                    print(f"Rejected connection from {client_address}, max connections ({self.max_clients}) reached.")
-                elif s == self.stop_pipe_r:
-                    # Stop the server if the stop pipe is read
-                    self.stop_event.set()
-                    break
-                else:
-                    try:
-                        # Receive data from the client
-                        data = s.recv(1024)
-                        if data:
-                            client_address = self.client_sockets[s]
-                            self.message_queue.put((client_address, data.decode('utf-8')))
-                        else:
-                            # Remove the client if no data is received
-                            client_address = self.client_sockets[s]
-                            print(client_address, "disconnected")
-                            self.remove_client(s)
-                    except OSError as e:
-                        if e.errno == 9 or e.errno == 32:
-                            # Handle broken pipe errors
-                            client_address = self.client_sockets[s]
-                            print(client_address, "disconnected")
-                            self.remove_client(s)
-                        else:
-                            print(f"Unexpected error: {e}")
-            for s in exceptional:
-                # Handle exceptional conditions
-                client_address = self.client_sockets[s]
-                print(client_address, "disconnected")
-                self.remove_client(s)
+            try:
+                self._serve_once()
+            except (OSError, ValueError, KeyError) as e:
+                # A client socket was closed under us (a send from another thread failed, or the
+                # peer reset). Before this, that exception killed this thread and the port kept
+                # listening without ever accepting again (video frozen, 2026-09-27).
+                print(f"accept loop recovered from {e!r}")
+                self._drop_dead_clients()
         print("Closing accept_connections...")
+
+    def _serve_once(self):
+        # One select() pass: accept, read, or notice a stop (the body of accept_connections).
+        # Use select to monitor the server socket and the stop pipe
+        readable, writable, exceptional = select.select([self.server_socket, self.stop_pipe_r] + list(self.client_sockets.keys()), [], [])
+        for s in readable:
+            if s == self.server_socket and self.active_connections < self.max_clients:
+                # Accept a new connection if the maximum number of clients is not reached
+                client_socket, client_address = s.accept()
+                client_socket.setblocking(0)
+                self.client_sockets[client_socket] = client_address
+                self.active_connections += 1
+                print(f"New connection from {client_address}, {self.active_connections} active connections.")
+            elif s == self.server_socket and self.active_connections >= self.max_clients:
+                # Reject new connections if the maximum number of clients is reached
+                client_socket, client_address = s.accept()
+                client_socket.close()
+                print(f"Rejected connection from {client_address}, max connections ({self.max_clients}) reached.")
+            elif s == self.stop_pipe_r:
+                # Stop the server if the stop pipe is read
+                self.stop_event.set()
+                break
+            else:
+                try:
+                    # Receive data from the client
+                    data = s.recv(1024)
+                    if data:
+                        client_address = self.client_sockets.get(s)
+                        self.message_queue.put((client_address, data.decode('utf-8')))
+                    else:
+                        # Remove the client if no data is received
+                        client_address = self.client_sockets.get(s)
+                        print(client_address, "disconnected")
+                        self.remove_client(s)
+                except OSError as e:
+                    if e.errno == 9 or e.errno == 32:
+                        # Handle broken pipe errors
+                        client_address = self.client_sockets.get(s)
+                        print(client_address, "disconnected")
+                        self.remove_client(s)
+                    else:
+                        print(f"Unexpected error: {e}")
+        for s in exceptional:
+            # Handle exceptional conditions
+            client_address = self.client_sockets.get(s)
+            print(client_address, "disconnected")
+            self.remove_client(s)
+
+    def _drop_dead_clients(self):
+        # Forget sockets that are already closed (fileno() == -1).
+        for s in [k for k in list(self.client_sockets) if k.fileno() == -1]:
+            if self.client_sockets.pop(s, None) is not None:
+                self.active_connections = max(0, self.active_connections - 1)
 
     def stop_pipe(self):
         # Send a byte to the stop pipe to signal the server to stop
@@ -103,7 +120,7 @@ class TCPServer:
                     encoded_message = message
                 client_socket.sendall(encoded_message)
             except socket.error as e:
-                print(f"Error sending data to {self.client_sockets[client_socket]}: {e}")
+                print(f"Error sending data to {self.client_sockets.get(client_socket)}: {e}")
                 self.remove_client(client_socket)
 
     def send_to_client(self, client_address, message):
@@ -124,10 +141,9 @@ class TCPServer:
 
     def remove_client(self, client_socket):
         # Remove a client from the server
-        if client_socket in self.client_sockets:
-            del self.client_sockets[client_socket]
+        if self.client_sockets.pop(client_socket, None) is not None:
             client_socket.close()
-            self.active_connections -= 1
+            self.active_connections = max(0, self.active_connections - 1)
 
     def close(self):
         # Close the server and all client connections
