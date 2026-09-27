@@ -253,6 +253,8 @@ class mywindow(QMainWindow, Ui_server_ui):
                     except:                                               # If an error occurs during sending
                         break                                             # Break out of the loop
                 self.camera.stop_stream()                                 # Stop the camera stream when done
+            else:
+                time.sleep(0.1)   # no video client: wait instead of spinning a core (it starved the command thread; JC 2026-09-27)
 
     def set_process_led_running(self, state, close_time=0.3):         # Method to start or stop the LED control process
         if self.led_process is None:                                  # Check if the LED process is not initialized
